@@ -6,8 +6,8 @@ import scalariform.formatter.preferences._
 
 lazy val commonSettings = SbtScalariform.scalariformSettings ++ Seq(
   // scalaVersion needs to be kept in sync with travis-ci
-  scalaVersion := ScalaVersions.scala212,
-  crossScalaVersions := Seq(ScalaVersions.scala211, ScalaVersions.scala212),
+  scalaVersion := ScalaVersions.scala211,
+  crossScalaVersions := Seq(ScalaVersions.scala211),
   ScalariformKeys.preferences := ScalariformKeys.preferences.value
     .setPreference(SpacesAroundMultiImports, true)
     .setPreference(SpaceInsideParentheses, false)
@@ -17,7 +17,7 @@ lazy val commonSettings = SbtScalariform.scalariformSettings ++ Seq(
 )
 
 // needs to be kept in sync with travis-ci
-val PlayVersion = playVersion(sys.env.getOrElse("PLAY_VERSION", "2.6.0"))
+val PlayVersion = playVersion(sys.env.getOrElse("PLAY_VERSION", "2.5.15"))
 
 lazy val `play-auth0` = (project in file("play-auth0"))
   .enablePlugins(PlayLibrary)
@@ -27,8 +27,12 @@ lazy val `play-auth0` = (project in file("play-auth0"))
       "javax.inject" % "javax.inject" % "1",
       "com.typesafe" % "config" % "1.3.1",
       "org.slf4j" % "slf4j-api" % "1.7.25",
-      "com.typesafe.play" %% "play" % PlayVersion % Test,
-      "com.typesafe.play" %% "play-specs2" % PlayVersion % Test
+      "com.github.blemale" %% "scaffeine" % "2.1.0",
+      "com.github.cb372" %% "scalacache-caffeine" % "0.9.4",
+      "com.auth0" % "java-jwt" % "3.2.0",
+      "com.typesafe.play" %% "play" % PlayVersion,
+      "com.typesafe.play" %% "play-ws" % PlayVersion,
+      "org.scalatestplus.play" %% "scalatestplus-play" % "2.0.0" % Test
     )
   )
 
