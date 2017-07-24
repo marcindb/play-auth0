@@ -1,4 +1,6 @@
-addSbtPlugin("com.typesafe.play" % "interplay" % sys.props.getOrElse("interplay.version", "1.3.5"))
+resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/"
+
+addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.1.8")
 

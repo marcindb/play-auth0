@@ -6,19 +6,23 @@ import java.security.interfaces.RSAPrivateKey
 import java.security.spec.RSAPrivateKeySpec
 import java.util.Date
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.PlaySpec
-import play.api.mvc.{ Action, _ }
-import play.api.routing.sird.{ GET, _ }
+import play.api.http.{DefaultFileMimeTypesProvider, FileMimeTypes, FileMimeTypesConfiguration}
+import play.api.mvc.{Action, _}
+import play.api.routing.sird.{GET, _}
 import play.api.test.Helpers._
-import play.api.test.{ FakeRequest, WsTestClient }
+import play.api.test.{FakeRequest, WsTestClient}
 import play.core.server.Server
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+
 
 class SecuredBuildersSpec extends PlaySpec {
 
@@ -29,30 +33,37 @@ class SecuredBuildersSpec extends PlaySpec {
   private val e = new BigInteger(1, Base64.decodeBase64(privateExponent))
   private val privateKey = kf.generatePrivate(new RSAPrivateKeySpec(n, e))
 
+  implicit val system = ActorSystem()
+  implicit val mat = ActorMaterializer()
+
   val config = new Auth0ConfigurationProvider(ConfigFactory.load())
 
-  def withSecuredBuilders[T](block: SecuredBuilders => T): T = {
+  implicit val fileMimeTypes: FileMimeTypes = new DefaultFileMimeTypesProvider(FileMimeTypesConfiguration()).get
+
+  def withSecuredBuilders[T](block: Auth0Secured => T): T = {
+
     Server.withRouter() {
       case GET(p"/.well-known/jwks.json") => Action {
         Results.Ok.sendResource("jwks.json")
       }
     } { implicit port =>
       WsTestClient.withClient { client =>
-        block(new SecuredBuilders(client, config))
+        block(new Auth0Secured(client, config))
       }
     }
   }
 
-  class ExampleController(val securedBuilders: SecuredBuilders) extends Controller {
-    def index() = securedBuilders.Secured {
+  class ExampleController(val secured: Secured) extends ControllerHelpers {
+    def index(): Action[AnyContent] = secured {
       Ok
     }
   }
 
   "SecuredBuilder" should {
     "return 200 if token is valid" in {
-      withSecuredBuilders { securedBuilders =>
-        val controller = new ExampleController(securedBuilders)
+      withSecuredBuilders { auth0Secured =>
+        val parser = new BodyParsers.Default()
+        val controller = new ExampleController(new Secured(auth0Secured, parser))
 
         val algorithm = Algorithm.RSA256(null, privateKey.asInstanceOf[RSAPrivateKey])
         val token = JWT.create()

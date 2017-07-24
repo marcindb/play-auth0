@@ -17,10 +17,10 @@ import play.api.libs.ws.WSClient
 import play.api.mvc
 import play.api.mvc._
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
+import scala.util.control.NonFatal
 import scalacache._
 import scalacache.caffeine._
 import scalacache.memoization.memoize
@@ -34,7 +34,7 @@ object JWKSet {
     (JsPath \ "e").read[String]
   ) (RSAjwk.apply _)
 
-  implicit val jwkReads: Reads[JWK] = new Reads[JWK] {
+  implicit object JwkReads extends Reads[JWK] {
     override def reads(json: JsValue): JsResult[JWK] = json match {
       case JsObject(fields) =>
         fields.get("kty") match {
@@ -48,6 +48,7 @@ object JWKSet {
   }
 
   implicit val jwkSetReads: Reads[JWKSet] = (JsPath \ "keys").read[List[JWK]].map(k => JWKSet(k))
+
 }
 
 case class JWKSet(keys: List[JWK])
@@ -76,25 +77,27 @@ final case class RSAjwk(
   }
 }
 
-object SecuredBuilders extends App {
+class VerifiedRequest[A](val subject: String, request: Request[A]) extends WrappedRequest[A](request)
+
+object Auth0Secured {
+
+  val authPrefix = "Bearer "
 
 }
 
-class VerifiedRequest[A](val subject: String, request: Request[A]) extends WrappedRequest[A](request)
+case object ValidationException extends RuntimeException
 
 @Singleton
-class SecuredBuilders @Inject() (ws: WSClient, configProvider: Auth0ConfigurationProvider)(implicit context: ExecutionContext) {
+class Auth0Secured @Inject() (ws: WSClient, configProvider: Auth0ConfigurationProvider)(implicit context: ExecutionContext) {
 
   implicit val scalaCache = ScalaCache(CaffeineCache())
-
-  private val authPrefix = "Bearer "
 
   private val config = configProvider.get()
 
   private val jwks = config.auth0domain + "/.well-known/jwks.json"
 
   private def service: Future[Map[String, JWK]] = memoize(2.seconds) {
-    ws.url(jwks).withHeaders("Accept" -> "application/json")
+    ws.url(jwks).addHttpHeaders("Accept" -> "application/json")
       .withRequestTimeout(3.seconds).get().map {
         _.json.validate[JWKSet].map { jwkSet =>
           jwkSet.keys.map(jwk => (jwk.kid, jwk)).toMap
@@ -110,25 +113,33 @@ class SecuredBuilders @Inject() (ws: WSClient, configProvider: Auth0Configuratio
         _.get(kid).map(Future.successful).getOrElse(Future.failed(new RuntimeException))
       })
 
-  object Secured extends ActionBuilder[VerifiedRequest] with ActionRefiner[Request, VerifiedRequest] {
-    override def refine[A](input: Request[A]): Future[Either[mvc.Results.Status, VerifiedRequest[A]]] =
-      input.headers.get("Authorization").map { auth =>
-        val token = auth.replaceFirst(authPrefix, "")
-        Try {
-          val decoded = JWT.decode(token)
-          val jwkF = cache.get(decoded.getKeyId)
-          jwkF.map {
-            case jwk: RSAjwk =>
-              val validator = JWT.require(Algorithm.RSA256(jwk.publicKey.asInstanceOf[RSAPublicKey], null))
-                .withIssuer(config.issuer)
-                .withAudience(config.audience)
-                .build()
-              val decoded = validator.verify(token)
-
-              Right(new VerifiedRequest(decoded.getSubject, input))
-          }
-        }.getOrElse(Future.successful(Left(Results.Forbidden)))
-      }.getOrElse(Future.successful(Left(Results.Forbidden)))
+  def validate(header: String): Future[String] = {
+    val token = header.replaceFirst(Auth0Secured.authPrefix, "")
+    Try {
+      val decoded = JWT.decode(token)
+      val jwkF = cache.get(decoded.getKeyId)
+      jwkF.map {
+        case jwk: RSAjwk =>
+          val validator = JWT.require(Algorithm.RSA256(jwk.publicKey.asInstanceOf[RSAPublicKey], null))
+            .withIssuer(config.issuer)
+            .withAudience(config.audience)
+            .build()
+          val decoded = validator.verify(token)
+          decoded.getSubject
+      }
+    }.getOrElse(Future.failed(ValidationException))
   }
 
+}
+
+class Secured @Inject() (auth0Secured: Auth0Secured, val parser: BodyParsers.Default)(implicit val executionContext: ExecutionContext)
+    extends ActionBuilder[VerifiedRequest, AnyContent] with ActionRefiner[Request, VerifiedRequest] {
+  override def refine[A](input: Request[A]): Future[Either[mvc.Results.Status, VerifiedRequest[A]]] =
+    input.headers.get("Authorization").map { auth =>
+      auth0Secured.validate(auth).map { subject =>
+        Right(new VerifiedRequest(subject, input))
+      }.recover {
+        case NonFatal(e) => Left(Results.Forbidden)
+      }
+    }.getOrElse(Future.successful(Left(Results.Forbidden)))
 }
