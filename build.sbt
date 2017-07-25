@@ -27,8 +27,7 @@ lazy val `play-auth0` = (project in file("play-auth0"))
       javaJwt,
       Play.core,
       Play.ws,
-      Play.testPlus,
-      Play.filters
+      Play.testPlus
     )
   )
 

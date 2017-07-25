@@ -4,6 +4,7 @@ import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.interfaces.RSAPrivateKey
 import java.security.spec.RSAPrivateKeySpec
+import java.time.Clock
 import java.util.Date
 
 import akka.actor.ActorSystem
@@ -13,16 +14,15 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.PlaySpec
-import play.api.http.{DefaultFileMimeTypesProvider, FileMimeTypes, FileMimeTypesConfiguration}
-import play.api.mvc.{Action, _}
-import play.api.routing.sird.{GET, _}
+import play.api.http.{ DefaultFileMimeTypesProvider, FileMimeTypes, FileMimeTypesConfiguration }
+import play.api.mvc.{ Action, _ }
+import play.api.routing.sird.{ GET, _ }
 import play.api.test.Helpers._
-import play.api.test.{FakeRequest, WsTestClient}
+import play.api.test.{ FakeRequest, WsTestClient }
 import play.core.server.Server
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-
 
 class SecuredBuildersSpec extends PlaySpec {
 
@@ -71,7 +71,7 @@ class SecuredBuildersSpec extends PlaySpec {
           .withAudience(config.get().audience)
           .withSubject("user_id")
           .withKeyId("RjM1RDgyNDkzRTQwNTI1NkNGNEIyNzY4N0VEQjcwQTg1MTc3N0MzNw")
-          .withExpiresAt(new Date(new Date().getTime + 1000))
+          .withExpiresAt(new Date(Clock.systemUTC().instant().plusSeconds(30).toEpochMilli))
           .sign(algorithm)
         val result: Future[Result] = controller.index().apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $token"))
         status(result) mustBe OK

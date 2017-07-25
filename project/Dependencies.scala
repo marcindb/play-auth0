@@ -17,8 +17,6 @@ object Dependencies {
     val testPlus = "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.1" % Test
     val playSpecs2 = "com.typesafe.play" %% "play-specs2" % version % Test
 
-    val filters = "com.typesafe.play" %% "filters-helpers" % version % Test
-
   }
 
   val scaffeine = "com.github.blemale" %% "scaffeine" % "2.1.0"
