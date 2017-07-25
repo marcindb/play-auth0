@@ -24,7 +24,7 @@ import play.core.server.Server
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class SecuredBuildersSpec extends PlaySpec {
+class SecuredSpec extends PlaySpec {
 
   private val kf = KeyFactory.getInstance("RSA")
   private val modulus = "AJjTJOdmf4WxNJF7sSVkCgTYSZUsFrxO9spuocy4Gz+K3IKDILsrHFAsVSiuHf/tEZFeYPtBaQtkACPdfbzs9iTU/PQTq+JMJmTJ3J+p36XKVOopkTGRBZYuORghwkm15qdqhIhq+jc1Ra1ykGpMWaKxolSURmVqqnNcgzjLFiw3c+jtH+69civo9VSEJiLDJiXh5wrw+msf68qVyn6XElGX1LRjdHuji3Klt5sVmrfZJ6FDdigR7VykNujglZW5YxB4Mv1Eo/om9PV0Du+XYGhMMndywGD/X40YuvPQlOQowcSZQLMeDspzg92SfB7QhpTcuFdfauijyuqU/Fzbqdc="
@@ -59,7 +59,7 @@ class SecuredBuildersSpec extends PlaySpec {
     }
   }
 
-  "SecuredBuilder" should {
+  "Secured endpoint" should {
     "return 200 if token is valid" in {
       withSecuredBuilders { auth0Secured =>
         val parser = new BodyParsers.Default()
