@@ -81,7 +81,7 @@ class VerifiedRequest[A](val subject: String, request: Request[A]) extends Wrapp
 
 object Auth0Secured {
 
-  val authPrefix = "Bearer "
+  private val authPrefix = "Bearer "
 
 }
 
@@ -114,20 +114,22 @@ class Auth0Secured @Inject() (ws: WSClient, configProvider: Auth0ConfigurationPr
       })
 
   def validate(header: String): Future[String] = {
-    val token = header.replaceFirst(Auth0Secured.authPrefix, "")
-    Try {
-      val decoded = JWT.decode(token)
-      val jwkF = cache.get(decoded.getKeyId)
-      jwkF.map {
-        case jwk: RSAjwk =>
-          val validator = JWT.require(Algorithm.RSA256(jwk.publicKey.asInstanceOf[RSAPublicKey], null))
-            .withIssuer(config.issuer)
-            .withAudience(config.audience)
-            .build()
-          val decoded = validator.verify(token)
-          decoded.getSubject
-      }
-    }.getOrElse(Future.failed(ValidationException))
+    if (header.startsWith(Auth0Secured.authPrefix)) {
+      val token = header.stripPrefix(Auth0Secured.authPrefix)
+      Try {
+        val decoded = JWT.decode(token)
+        val jwkF = cache.get(decoded.getKeyId)
+        jwkF.map {
+          case jwk: RSAjwk =>
+            val validator = JWT.require(Algorithm.RSA256(jwk.publicKey.asInstanceOf[RSAPublicKey], null))
+              .withIssuer(config.issuer)
+              .withAudience(config.audience)
+              .build()
+            val decoded = validator.verify(token)
+            decoded.getSubject
+        }
+      }.getOrElse(Future.failed(ValidationException))
+    } else Future.failed(ValidationException)
   }
 
 }
