@@ -12,7 +12,6 @@ object Dependencies {
 
     val core = "com.typesafe.play" %% "play" % version % Provided
     val ws = "com.typesafe.play" %% "play-ws" % version % Provided
-    val cache = "com.typesafe.play" %% "play-cache" % version % Provided
 
     val testPlus = "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.1" % Test
     val playSpecs2 = "com.typesafe.play" %% "play-specs2" % version % Test
