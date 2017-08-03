@@ -66,7 +66,7 @@ class Auth0Secured @Inject() (ws: WSClient, configProvider: Auth0ConfigurationPr
       .expireAfterWrite(config.jwks.cacheMaxAge)
       .maximumSize(config.jwks.cacheMaxEntries)
       .buildAsyncFuture((kid: String) => service.flatMap {
-        _.get(kid).map(Future.successful).getOrElse(Future.failed(new RuntimeException))
+        _.get(kid).map(Future.successful).getOrElse(Future.failed(ValidationException))
       })
 
 }

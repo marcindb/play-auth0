@@ -35,8 +35,45 @@ class SecuredSpec extends PlaySpec with BeforeAndAfterAll {
   private val e = new BigInteger(1, Base64.decodeBase64(privateExponent))
   private val privateKey = kf.generatePrivate(new RSAPrivateKeySpec(n, e))
 
+  private val subject = "user_id"
+  private val keyId = "RjM1RDgyNDkzRTQwNTI1NkNGNEIyNzY4N0VEQjcwQTg1MTc3N0MzNw"
+
+  private val algorithm = Algorithm.RSA256(null, privateKey.asInstanceOf[RSAPrivateKey])
+
   implicit val system = ActorSystem()
   implicit val mat = ActorMaterializer()
+
+  private def validToken = JWT.create()
+    .withIssuer(config.get().issuer)
+    .withAudience(config.get().audience)
+    .withSubject(subject)
+    .withKeyId(keyId)
+    .withExpiresAt(new Date(Clock.systemUTC().instant().plusSeconds(30).toEpochMilli))
+    .sign(algorithm)
+
+  private def outdatedToken = JWT.create()
+    .withIssuer(config.get().issuer)
+    .withAudience(config.get().audience)
+    .withSubject(subject)
+    .withKeyId(keyId)
+    .withExpiresAt(new Date(Clock.systemUTC().instant().minusSeconds(30).toEpochMilli))
+    .sign(algorithm)
+
+  private def invalidIssuerToken = JWT.create()
+    .withIssuer("invalid")
+    .withAudience(config.get().audience)
+    .withSubject(subject)
+    .withKeyId(keyId)
+    .withExpiresAt(new Date(Clock.systemUTC().instant().plusSeconds(30).toEpochMilli))
+    .sign(algorithm)
+
+  private def invalidKeyIdToken = JWT.create()
+    .withIssuer(config.get().issuer)
+    .withAudience(config.get().audience)
+    .withSubject(subject)
+    .withKeyId("key")
+    .withExpiresAt(new Date(Clock.systemUTC().instant().plusSeconds(30).toEpochMilli))
+    .sign(algorithm)
 
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
@@ -61,6 +98,10 @@ class SecuredSpec extends PlaySpec with BeforeAndAfterAll {
     def index(): Action[AnyContent] = secured {
       Ok
     }
+
+    def subject(): Action[AnyContent] = secured { req: VerifiedRequest[AnyContent] =>
+      Ok(req.subject)
+    }
   }
 
   "Secured endpoint" should {
@@ -69,18 +110,56 @@ class SecuredSpec extends PlaySpec with BeforeAndAfterAll {
         val parser = new BodyParsers.Default()
         val controller = new ExampleController(new Secured(auth0Secured, parser))
 
-        val algorithm = Algorithm.RSA256(null, privateKey.asInstanceOf[RSAPrivateKey])
-        val token = JWT.create()
-          .withIssuer(config.get().issuer)
-          .withAudience(config.get().audience)
-          .withSubject("user_id")
-          .withKeyId("RjM1RDgyNDkzRTQwNTI1NkNGNEIyNzY4N0VEQjcwQTg1MTc3N0MzNw")
-          .withExpiresAt(new Date(Clock.systemUTC().instant().plusSeconds(30).toEpochMilli))
-          .sign(algorithm)
-        val result: Future[Result] = controller.index().apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $token"))
+        val result: Future[Result] = controller.index()
+          .apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $validToken"))
         status(result) mustBe OK
       }
     }
+
+    "pass subject if token is valid" in {
+      withSecuredBuilders { auth0Secured =>
+        val parser = new BodyParsers.Default()
+        val controller = new ExampleController(new Secured(auth0Secured, parser))
+
+        val result: Future[Result] = controller.subject()
+          .apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $validToken"))
+        contentAsString(result) mustEqual "user_id"
+      }
+    }
+
+    "return 403 if token is outdated" in {
+      withSecuredBuilders { auth0Secured =>
+        val parser = new BodyParsers.Default()
+        val controller = new ExampleController(new Secured(auth0Secured, parser))
+
+        val result: Future[Result] = controller.index()
+          .apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $outdatedToken"))
+        status(result) mustBe FORBIDDEN
+      }
+    }
+
+    "return 403 if issuer is invalid" in {
+      withSecuredBuilders { auth0Secured =>
+        val parser = new BodyParsers.Default()
+        val controller = new ExampleController(new Secured(auth0Secured, parser))
+
+        val result: Future[Result] = controller.index()
+          .apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $invalidIssuerToken"))
+        status(result) mustBe FORBIDDEN
+      }
+    }
+
+    "return 403 if key id is invalid" in {
+      withSecuredBuilders { auth0Secured =>
+        val parser = new BodyParsers.Default()
+        val controller = new ExampleController(new Secured(auth0Secured, parser))
+
+        val result: Future[Result] = controller.index()
+          .apply(FakeRequest().withHeaders("Authorization" -> s"Bearer $invalidKeyIdToken"))
+        status(result) mustBe FORBIDDEN
+      }
+    }
+
   }
 
 }
