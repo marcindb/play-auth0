@@ -9,10 +9,12 @@ import java.util.Date
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import akka.testkit.TestKit
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.codec.binary.Base64
+import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
 import play.api.http.{ DefaultFileMimeTypesProvider, FileMimeTypes, FileMimeTypesConfiguration }
 import play.api.mvc.{ Action, _ }
@@ -24,7 +26,7 @@ import play.core.server.Server
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class SecuredSpec extends PlaySpec {
+class SecuredSpec extends PlaySpec with BeforeAndAfterAll {
 
   private val kf = KeyFactory.getInstance("RSA")
   private val modulus = "AJjTJOdmf4WxNJF7sSVkCgTYSZUsFrxO9spuocy4Gz+K3IKDILsrHFAsVSiuHf/tEZFeYPtBaQtkACPdfbzs9iTU/PQTq+JMJmTJ3J+p36XKVOopkTGRBZYuORghwkm15qdqhIhq+jc1Ra1ykGpMWaKxolSURmVqqnNcgzjLFiw3c+jtH+69civo9VSEJiLDJiXh5wrw+msf68qVyn6XElGX1LRjdHuji3Klt5sVmrfZJ6FDdigR7VykNujglZW5YxB4Mv1Eo/om9PV0Du+XYGhMMndywGD/X40YuvPQlOQowcSZQLMeDspzg92SfB7QhpTcuFdfauijyuqU/Fzbqdc="
@@ -36,6 +38,8 @@ class SecuredSpec extends PlaySpec {
   implicit val system = ActorSystem()
   implicit val mat = ActorMaterializer()
 
+  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+
   val config = new Auth0ConfigurationProvider(ConfigFactory.load())
 
   implicit val fileMimeTypes: FileMimeTypes = new DefaultFileMimeTypesProvider(FileMimeTypesConfiguration()).get
@@ -43,7 +47,7 @@ class SecuredSpec extends PlaySpec {
   def withSecuredBuilders[T](block: Auth0Secured => T): T = {
 
     Server.withRouter() {
-      case GET(p"/.well-known/jwks.json") => Action {
+      case GET(p"/") => Action {
         Results.Ok.sendResource("jwks.json")
       }
     } { implicit port =>

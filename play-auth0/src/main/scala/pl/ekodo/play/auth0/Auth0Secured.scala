@@ -22,8 +22,6 @@ object Auth0Secured {
 
   private val authPrefix = "Bearer "
 
-  private val jwksPath = "/.well-known/jwks.json"
-
 }
 
 case object ValidationException extends RuntimeException
@@ -34,8 +32,6 @@ class Auth0Secured @Inject() (ws: WSClient, configProvider: Auth0ConfigurationPr
   private implicit val scalaCache = ScalaCache(CaffeineCache())
 
   private val config = configProvider.get()
-
-  private val jwks = config.auth0domain + Auth0Secured.jwksPath
 
   def validate(header: String): Future[String] = {
     if (header.startsWith(Auth0Secured.authPrefix)) {
@@ -57,7 +53,7 @@ class Auth0Secured @Inject() (ws: WSClient, configProvider: Auth0ConfigurationPr
   }
 
   private def service: Future[Map[String, JWK]] = memoize(config.jwks.serviceMemoize) {
-    ws.url(jwks).addHttpHeaders("Accept" -> "application/json")
+    ws.url(config.jwks.uri).addHttpHeaders("Accept" -> "application/json")
       .withRequestTimeout(3.seconds).get().map {
         _.json.validate[JWKSet].map { jwkSet =>
           jwkSet.keys.map(jwk => (jwk.kid, jwk)).toMap
