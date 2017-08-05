@@ -7,7 +7,7 @@ import Dependencies._
 
 lazy val commonSettings = SbtScalariform.scalariformSettings ++ Seq(
   // scalaVersion needs to be kept in sync with travis-ci
-  scalaVersion := "2.12.2",
+  scalaVersion := "2.12.3",
   organization := "pl.ekodo",
   crossScalaVersions := Seq("2.11.11", scalaVersion.value),
   ScalariformKeys.preferences := ScalariformKeys.preferences.value
